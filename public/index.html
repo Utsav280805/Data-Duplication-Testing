@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Duplication Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .duplicate-group {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .similarity-badge {
+            font-size: 0.9em;
+            padding: 3px 8px;
+        }
+        .record-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .progress {
+            height: 25px;
+        }
+        .duplicate-group {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        .records-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .record-item {
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 0.25rem;
+        }
+        .similarity-badge {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+        }
+        .record-pair {
+            position: relative;
+            padding: 1rem;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h2 class="mb-4">Data Duplication Analyzer</h2>
+        
+        <!-- File Upload Section -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Upload File</h5>
+                <form id="uploadForm" class="mb-3">
+                    <div class="mb-3">
+                        <input type="file" class="form-control" id="fileInput" accept=".xlsx,.xls,.csv,.json">
+                    </div>
+                    <div class="mb-3">
+                        <label for="similarityThreshold" class="form-label">Similarity Threshold (%)</label>
+                        <input type="range" class="form-range" id="similarityThreshold" min="1" max="100" value="70">
+                        <div class="text-center" id="thresholdValue">70%</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Analyze</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" style="display: none;">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Analysis Results</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="progress mb-3">
+                                <div id="duplicateProgress" class="progress-bar bg-warning" role="progressbar"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Detailed Statistics -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Records</h6>
+                                    <p id="totalRecords" class="h4 mb-0 text-primary">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Duplicate Records</h6>
+                                    <p id="duplicateRecords" class="h4 mb-0 text-warning">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Unique Records</h6>
+                                    <p id="uniqueRecords" class="h4 mb-0 text-success">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Redundancy</h6>
+                                    <p id="redundancyPercentage" class="h4 mb-0 text-danger">0%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Section -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Actions</h5>
+                    
+                    <!-- Download Format Selection -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="downloadFormat" class="form-label">Download Format</label>
+                            <select class="form-select" id="downloadFormat">
+                                <option value="xlsx">Excel (XLSX)</option>
+                                <option value="xls">Excel 97-2003 (XLS)</option>
+                                <option value="csv">CSV</option>
+                                <option value="json">JSON</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="btn-group mb-3">
+                        <button class="btn btn-success dropdown-toggle" type="button" id="mergeDropdown" data-bs-toggle="dropdown">
+                            Merge & Download
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="mergeSelected">Merge Selected Groups</a></li>
+                            <li><a class="dropdown-item" href="#" id="mergeAll">Merge All Groups</a></li>
+                        </ul>
+                        <button class="btn btn-warning" id="ignoreSelected">Ignore Selected</button>
+                        <button class="btn btn-info" id="downloadOriginal">Download Original</button>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                        <label class="form-check-label" for="selectAll">Select All Groups</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Duplicate Groups -->
+            <div id="duplicateGroups"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let analysisResults = null;
+
+        document.getElementById('similarityThreshold').addEventListener('input', function(e) {
+            document.getElementById('thresholdValue').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            const fileInput = document.getElementById('fileInput');
+            const threshold = document.getElementById('similarityThreshold').value;
+
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch(`/upload?threshold=${threshold}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                analysisResults = await response.json();
+                displayResults(analysisResults);
+            } catch (error) {
+                alert('Error analyzing file: ' + error.message);
+            }
+        });
+
+        function displayResults(results) {
+            const resultsSection = document.getElementById('resultsSection');
+            const duplicateGroups = document.getElementById('duplicateGroups');
+            resultsSection.style.display = 'block';
+            duplicateGroups.innerHTML = '';
+
+            // Calculate statistics
+            const totalRecords = results.totalRecords;
+            let duplicateCount = 0;
+            results.duplicateGroups.forEach(group => {
+                duplicateCount += group.duplicates.length;
+            });
+            const uniqueRecords = totalRecords - duplicateCount;
+            const redundancyPercentage = ((duplicateCount / totalRecords) * 100).toFixed(1);
+
+            // Update statistics display
+            document.getElementById('totalRecords').textContent = totalRecords;
+            document.getElementById('duplicateRecords').textContent = duplicateCount;
+            document.getElementById('uniqueRecords').textContent = uniqueRecords;
+            document.getElementById('redundancyPercentage').textContent = redundancyPercentage + '%';
+
+            // Update progress bar
+            const progressBar = document.getElementById('duplicateProgress');
+            progressBar.style.width = `${redundancyPercentage}%`;
+            progressBar.textContent = `${redundancyPercentage}% Redundancy`;
+
+            // Display duplicate groups
+            results.duplicateGroups.forEach((group, index) => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'duplicate-group';
+                
+                // Create group header with checkbox
+                const header = document.createElement('div');
+                header.className = 'mb-3';
+                header.innerHTML = `
+                    <div class="form-check">
+                        <input class="form-check-input group-checkbox" type="checkbox" value="${group.groupId}" id="group${group.groupId}">
+                        <label class="form-check-label" for="group${group.groupId}">
+                            <h6>Group ${group.groupId} (${group.duplicates.length + 1} records)</h6>
+                        </label>
+                    </div>
+                `;
+
+                // Create records container
+                const recordsContainer = document.createElement('div');
+                recordsContainer.className = 'records-container';
+
+                // Add original record as reference
+                const originalDiv = document.createElement('div');
+                originalDiv.className = 'record-item';
+                originalDiv.innerHTML = `
+                    <strong>Original Record</strong>
+                    <pre>${JSON.stringify(group.original, null, 2)}</pre>
+                `;
+                
+                // Display duplicates side by side with original
+                group.duplicates.forEach(dup => {
+                    const pairDiv = document.createElement('div');
+                    pairDiv.className = 'record-pair';
+                    
+                    const similarity = parseFloat(dup.similarity);
+                    const badgeColor = similarity >= 90 ? 'danger' : similarity >= 70 ? 'warning' : 'info';
+                    
+                    pairDiv.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Original</strong>
+                                <pre>${JSON.stringify(group.original, null, 2)}</pre>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Duplicate</strong>
+                                <span class="badge bg-${badgeColor} similarity-badge">
+                                    ${dup.similarity}% Similar
+                                </span>
+                                <pre>${JSON.stringify(dup.record, null, 2)}</pre>
+                            </div>
+                        </div>
+                    `;
+                    recordsContainer.appendChild(pairDiv);
+                });
+
+                groupDiv.appendChild(header);
+                groupDiv.appendChild(recordsContainer);
+                duplicateGroups.appendChild(groupDiv);
+            });
+
+            // Handle select all checkbox
+            document.getElementById('selectAll').addEventListener('change', function(e) {
+                document.querySelectorAll('.group-checkbox').forEach(checkbox => {
+                    checkbox.checked = e.target.checked;
+                });
+            });
+        }
+
+        // Handle merge and download
+        async function handleMergeAndDownload(selectedGroups = null) {
+            const format = document.getElementById('downloadFormat').value;
+            const threshold = document.getElementById('similarityThreshold').value;
+
+            if (selectedGroups && selectedGroups.length === 0) {
+                alert('Please select at least one group to merge');
+                return;
+            }
+
+            try {
+                const response = await fetch('/merge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        data: analysisResults,
+                        selectedGroups,
+                        similarityThreshold: threshold,
+                        outputFormat: format
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = `/download/${result.fileName}`;
+                    alert(`Successfully merged ${result.mergedCount} records`);
+                }
+            } catch (error) {
+                alert('Error merging records: ' + error.message);
+            }
+        }
+
+        // Merge selected groups
+        document.getElementById('mergeSelected').addEventListener('click', () => {
+            const selectedGroups = Array.from(document.querySelectorAll('.group-checkbox:checked'))
+                .map(cb => parseInt(cb.value));
+            handleMergeAndDownload(selectedGroups);
+        });
+
+        // Merge all groups
+        document.getElementById('mergeAll').addEventListener('click', () => {
+            handleMergeAndDownload(null);
+        });
+
+        // Handle ignore action
+        document.getElementById('ignoreSelected').addEventListener('click', async () => {
+            const selectedGroups = Array.from(document.querySelectorAll('.group-checkbox:checked'))
+                .map(cb => parseInt(cb.value));
+
+            if (selectedGroups.length === 0) {
+                alert('Please select at least one group to ignore');
+                return;
+            }
+
+            try {
+                const response = await fetch('/ignore', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        data: analysisResults,
+                        selectedGroups
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    // Remove ignored groups from the display
+                    selectedGroups.forEach(groupId => {
+                        const groupElement = document.querySelector(`#group${groupId}`).closest('.duplicate-group');
+                        if (groupElement) {
+                            groupElement.remove();
+                        }
+                    });
+
+                    // Update the analysis results
+                    analysisResults.duplicateGroups = analysisResults.duplicateGroups
+                        .filter(group => !selectedGroups.includes(group.groupId));
+                    
+                    // Update stats
+                    document.getElementById('statsInfo').textContent = 
+                        `Total Records: ${analysisResults.totalRecords} | Duplicate Groups: ${analysisResults.duplicateGroups.length}`;
+                    
+                    alert(`Successfully ignored ${result.ignoredCount} records from ${selectedGroups.length} groups`);
+                }
+            } catch (error) {
+                alert('Error ignoring groups: ' + error.message);
+            }
+        });
+
+        // Handle download original
+        document.getElementById('downloadOriginal').addEventListener('click', async () => {
+            if (!analysisResults) return;
+            
+            const format = document.getElementById('downloadFormat').value;
+            
+            try {
+                const response = await fetch('/download/original', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...analysisResults,
+                        outputFormat: format
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    window.location.href = `/download/${result.fileName}`;
+                }
+            } catch (error) {
+                alert('Error downloading original file: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
